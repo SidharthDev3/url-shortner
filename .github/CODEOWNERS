@@ -1,0 +1,20 @@
+# ==============================================================================
+# GitHub CODEOWNERS
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# NOTE: Replace @dev1-username and @dev2-username with your teammates' actual GitHub usernames.
+# ==============================================================================
+
+# Default fallback / Fullstack Lead (Developer 3 - Sidharth): oversees whole project
+*                   @SidharthDev3
+
+# Frontend: Developer 1 (Primary) & Developer 3 (Fullstack)
+/frontend/          @dev1-username @SidharthDev3
+
+# Backend: Developer 2 (Primary) & Developer 3 (Fullstack)
+/backend/           @dev2-username @SidharthDev3
+
+# Root repository configurations & CI/CD workflows: Developer 3
+/.github/           @SidharthDev3
+/README.md          @SidharthDev3
+/.gitignore         @SidharthDev3
