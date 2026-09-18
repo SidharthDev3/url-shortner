@@ -11,10 +11,11 @@
 # Frontend: Developer 1 (Primary) & Developer 3 (Fullstack)
 /frontend/          @dev1-username @SidharthDev3
 
-# Backend: Developer 2 (Primary) & Developer 3 (Fullstack)
-/backend/           @dev2-username @SidharthDev3
+# Backend: Developer 2 (Yadav999-star) & Developer 3 (Fullstack)
+/backend/           @Yadav999-star @SidharthDev3
 
 # Root repository configurations & CI/CD workflows: Developer 3
 /.github/           @SidharthDev3
 /README.md          @SidharthDev3
 /.gitignore         @SidharthDev3
+
