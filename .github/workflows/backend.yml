@@ -38,3 +38,4 @@ jobs:
 
       - name: Build backend packages
         run: go build -v ./...
+
