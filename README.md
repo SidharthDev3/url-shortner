@@ -1,46 +1,21 @@
-# URL Shortener
+# URL Shortener — System Design
 
-A modern full-stack URL shortener application built with a **Go** backend, a **React** (Vite) frontend, and **SQLite** persistence.
+## What is this project?
+A full-stack web app that converts long URLs into short, shareable links, built with a Go backend, React frontend, and SQLite database.
 
----
+## Why we want this project?
+Long URLs are hard to share, remember, and use across social media, messages, or print. A shortener makes links compact, clean, and easy to distribute — without losing the original destination.
 
-## Architecture Overview
+## What it will do?
+- Convert any long URL into a unique short code
+- Instantly redirect visitors from the short link to the original URL
+- Show a dashboard of all previously created links
+- Let users copy a short link with one click
+- Detect duplicate URLs and reuse the existing short code instead of creating a new one
 
-```
-url-shortner/
-├── backend/          # Go RESTful API service & SQLite persistence
-├── frontend/         # React (JavaScript) single-page application built with Vite
-├── .gitignore        # Root gitignore for cross-environment hygiene
-└── README.md         # Monorepo documentation & quickstart
-```
-
-- **[Backend](backend/README.md)**: Go modular architecture with clean separation across `cmd/`, `internal/`, `pkg/`, and `data/`.
-- **[Frontend](frontend/README.md)**: React SPA scaffolded with Vite and organized into modular directories (`components/`, `pages/`, `services/`, `hooks/`, `context/`, `utils/`).
-- **Database**: SQLite embedded database file stored under `backend/data/`.
-
----
-
-## Quick Start (Prerequisites)
-
-- [Go](https://go.dev/) (v1.22+)
-- [Node.js](https://nodejs.org/) (v18+) & [npm](https://www.npmjs.com/)
-
-### 1. Backend Setup
-Navigate to the `backend/` directory:
-```bash
-cd backend
-cp .env.example .env
-go run cmd/server/main.go
-```
-See [backend/README.md](backend/README.md) for detailed configuration options.
-
-### 2. Frontend Setup
-Navigate to the `frontend/` directory:
-```bash
-cd frontend
-cp .env.example .env
-npm install
-npm run dev
-```
-See [frontend/README.md](frontend/README.md) for detailed frontend documentation.
-
+## How the system works?
+1. User submits a long URL from the frontend.
+2. Backend checks if the URL already exists — if yes, returns the existing short code.
+3. If not, backend generates a new unique short code and saves the mapping (`short_code → original_url`) in SQLite.
+4. The short link is shown to the user with a copy button, and added to the dashboard.
+5. When someone visits the short link, the backend looks up the code and redirects them to the original URL.
