@@ -71,6 +71,4 @@ function UrlShortener() {
 }
 
 export default UrlShortener;
-}
 
-export default UrlShortener;
