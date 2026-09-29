@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-const [url, setUrl] = useState("");
-const [shortUrl, setShortUrl] = useState("");
-const [showQR, setShowQR] = useState(false);
 
 function UrlShortener() {
   const [url, setUrl] = useState("");
   const [shortUrl, setShortUrl] = useState("");
+  const [showQR, setShowQR] = useState(false);
 
   const handleShorten = () => {
     if (!url.trim()) {
@@ -14,8 +12,8 @@ function UrlShortener() {
       return;
     }
 
-    // Temporary short URL for testing the frontend
     setShortUrl("shorturl.at/abc123");
+    setShowQR(false);
   };
 
   return (
@@ -65,10 +63,17 @@ function UrlShortener() {
                 Copy Link
               </button>
 
-              <button>onClick={() => setShowQR(!showQR)}>
-  QR</button>
+              <button onClick={() => setShowQR(!showQR)}>
+                QR
+              </button>
             </div>
           </div>
+
+          {showQR && (
+            <div className="qr-code">
+              <QRCodeSVG value={shortUrl} size={160} />
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -76,4 +81,3 @@ function UrlShortener() {
 }
 
 export default UrlShortener;
-
