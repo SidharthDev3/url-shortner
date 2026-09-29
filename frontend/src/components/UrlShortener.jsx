@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+const [url, setUrl] = useState("");
+const [shortUrl, setShortUrl] = useState("");
+const [showQR, setShowQR] = useState(false);
 
 function UrlShortener() {
   const [url, setUrl] = useState("");
@@ -61,7 +65,8 @@ function UrlShortener() {
                 Copy Link
               </button>
 
-              <button>QR</button>
+              <button>onClick={() => setShowQR(!showQR)}>
+  QR</button>
             </div>
           </div>
         </div>
