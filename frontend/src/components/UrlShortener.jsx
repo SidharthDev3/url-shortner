@@ -1,25 +1,48 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { shortenUrl } from "../services/api";
 
 function UrlShortener() {
   const [url, setUrl] = useState("");
   const [shortUrl, setShortUrl] = useState("");
   const [showQR, setShowQR] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleShorten = () => {
+  const handleShorten = async (e) => {
+    if (e) e.preventDefault();
+    setError("");
+
     if (!url.trim()) {
-      alert("Please enter a URL");
+      setError("Please enter a URL to shorten");
       return;
     }
 
-    setShortUrl("shorturl.at/abc123");
-    setShowQR(false);
+    setLoading(true);
+    try {
+      const data = await shortenUrl(url);
+      setShortUrl(data.short_url);
+      setShowQR(false);
+    } catch (err) {
+      setError(err.message || "Failed to shorten URL. Make sure the backend server is running.");
+      setShortUrl("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!shortUrl) return;
+    navigator.clipboard.writeText(shortUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <section className="url-shortener">
       <div className="badge">
-        🔵 Free & Instant Link Shortener
+        🔵 Free &amp; Instant Link Shortener
       </div>
 
       <h1>
@@ -31,19 +54,31 @@ function UrlShortener() {
         redirect link in seconds.
       </p>
 
-      <div className="url-form">
+      <form className="url-form" onSubmit={handleShorten}>
         <input
           type="text"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (error) setError("");
+          }}
           placeholder="https://example.com/your-long-url"
+          disabled={loading}
         />
 
-        <button onClick={handleShorten}>
-          Shorten URL ⚡
+        <button type="submit" disabled={loading}>
+          {loading ? "Shortening..." : "Shorten URL ⚡"}
         </button>
-      </div>
+      </form>
 
+      {/* Validation / Server Error Message */}
+      {error && (
+        <div className="error-message">
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Short Link Output Card */}
       {shortUrl && (
         <div className="result-card">
           <div className="result-header">
@@ -52,26 +87,34 @@ function UrlShortener() {
           </div>
 
           <div className="result-content">
-            <span className="short-url">{shortUrl}</span>
+            <a
+              href={shortUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="short-url"
+              title="Click to visit shortened URL"
+            >
+              {shortUrl}
+            </a>
 
             <div className="result-actions">
-              <button
-                onClick={() =>
-                  navigator.clipboard.writeText(shortUrl)
-                }
-              >
-                Copy Link
+              <button type="button" onClick={handleCopy}>
+                {copied ? "✓ Copied!" : "Copy Link"}
               </button>
 
-              <button onClick={() => setShowQR(!showQR)}>
-                QR
+              <button
+                type="button"
+                onClick={() => setShowQR(!showQR)}
+                className={showQR ? "active-qr" : ""}
+              >
+                {showQR ? "Hide QR" : "QR"}
               </button>
             </div>
           </div>
 
           {showQR && (
             <div className="qr-code">
-              <QRCodeSVG value={shortUrl} size={140} />
+              <QRCodeSVG value={shortUrl} size={130} />
             </div>
           )}
         </div>

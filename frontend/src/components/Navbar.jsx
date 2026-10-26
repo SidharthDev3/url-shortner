@@ -1,4 +1,4 @@
-function Navbar() {
+function Navbar({ onOpenHistory }) {
   return (
     <nav className="navbar">
       <div className="brand">
@@ -9,8 +9,14 @@ function Navbar() {
         </div>
       </div>
 
-      <div className="powered-by">
-        POWERED BY <strong>TeamCode</strong>
+      <div className="nav-actions">
+        <button type="button" className="history-btn" onClick={onOpenHistory}>
+          📋 Recent Links
+        </button>
+
+        <div className="powered-by">
+          POWERED BY <strong>TeamCode</strong>
+        </div>
       </div>
     </nav>
   );
