@@ -69,97 +69,30 @@ type sqlRepository struct {
 }
 
 func (r *sqlRepository) migrate() error {
-    var schema string
-    if r.driver == "sqlite" {
-        schema = `
-        CREATE TABLE IF NOT EXISTS urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            original_url TEXT NOT NULL UNIQUE,
-            short_code TEXT NOT NULL UNIQUE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-        `
-    } else { // mysql
-        schema = `
-        CREATE TABLE IF NOT EXISTS urls (
-            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            original_url VARCHAR(2048) NOT NULL UNIQUE,
-            short_code VARCHAR(255) NOT NULL UNIQUE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-        `
-    }
-    _, err := r.db.Exec(schema)
-    return err
-}
-    var schema string
-    if r.driver == "sqlite" {
-        schema = `
-        CREATE TABLE IF NOT EXISTS urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            original_url TEXT NOT NULL UNIQUE,
-            short_code TEXT NOT NULL UNIQUE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-        `
-    } else { // mysql
-        schema = `
-        CREATE TABLE IF NOT EXISTS urls (
-            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            original_url VARCHAR(2048) NOT NULL UNIQUE,
-            short_code VARCHAR(128) NOT NULL UNIQUE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB;
-        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-        `
-    }
-    _, err := r.db.Exec(schema)
-    return err
-}
-    var schema string
-    if r.driver == "sqlite" {
-        schema = `
-        CREATE TABLE IF NOT EXISTS urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            original_url TEXT NOT NULL UNIQUE,
-            short_code TEXT NOT NULL UNIQUE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-        `
-    } else { // mysql
-        schema = `
-        CREATE TABLE IF NOT EXISTS urls (
-            id BIGINT PRIMARY KEY AUTO_INCREMENT,
-            original_url VARCHAR(2048) NOT NULL UNIQUE,
-            short_code VARCHAR(255) NOT NULL UNIQUE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX idx_urls_short_code ON urls(short_code);
-        CREATE INDEX idx_urls_original_url ON urls(original_url);
-        `
-    }
-    _, err := r.db.Exec(schema)
-    return err
-}
-	schema := `
-    CREATE TABLE IF NOT EXISTS urls (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        original_url TEXT NOT NULL UNIQUE,
-        short_code TEXT NOT NULL UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-    CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-    `
+	var schema string
+	if r.driver == "sqlite" {
+		schema = `
+		CREATE TABLE IF NOT EXISTS urls (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			original_url TEXT NOT NULL UNIQUE,
+			short_code TEXT NOT NULL UNIQUE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+		`
+	} else { // mysql
+		schema = `
+		CREATE TABLE IF NOT EXISTS urls (
+			id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			original_url VARCHAR(2048) NOT NULL UNIQUE,
+			short_code VARCHAR(255) NOT NULL UNIQUE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+		`
+	}
 	_, err := r.db.Exec(schema)
 	return err
 }
