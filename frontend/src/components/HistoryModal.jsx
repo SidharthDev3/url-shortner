@@ -7,13 +7,26 @@ function HistoryModal({ isOpen, onClose }) {
   const [copiedCode, setCopiedCode] = useState("");
 
   useEffect(() => {
-    if (isOpen) {
-      setLoading(true);
-      getRecentUrls()
-        .then((data) => setHistory(data))
-        .catch(() => setHistory([]))
-        .finally(() => setLoading(false));
-    }
+    if (!isOpen) return;
+
+    let active = true;
+    getRecentUrls()
+      .then((data) => {
+        if (active) {
+          setHistory(data || []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setHistory([]);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -29,7 +42,7 @@ function HistoryModal({ isOpen, onClose }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>📋 Shortened Links Dashboard</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button type="button" className="modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="modal-body">
@@ -55,6 +68,7 @@ function HistoryModal({ isOpen, onClose }) {
                     </span>
                   </div>
                   <button
+                    type="button"
                     className="history-copy-btn"
                     onClick={() => handleCopy(item.short_url, item.short_code)}
                   >

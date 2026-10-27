@@ -9,15 +9,17 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "modernc.org/sqlite"
 	"url-shortener-backend/internal/models"
+
+	// Drivers – the one needed will be selected at runtime.
+	_ "modernc.org/sqlite"
 )
 
 var (
 	ErrNotFound = errors.New("url mapping not found")
 )
 
-// Repository defines data persistence operations for URLs.
+// Repository defines persistence operations for URLs.
 type Repository interface {
 	FindByOriginalURL(ctx context.Context, originalURL string) (*models.URL, error)
 	Create(ctx context.Context, originalURL, shortCode string) (*models.URL, error)
@@ -26,119 +28,189 @@ type Repository interface {
 	Close() error
 }
 
-// SQLiteRepository implements Repository backed by SQLite.
-type SQLiteRepository struct {
-	db *sql.DB
-}
-
-// NewSQLiteRepository creates or opens an SQLite database and runs migrations.
-func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
-	dir := filepath.Dir(dbPath)
-	if dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create database directory: %w", err)
+// NewRepository creates a repository based on the driver and DSN.
+func NewRepository(driver string, dsn string) (Repository, error) {
+	// Ensure the directory exists for SQLite file if needed.
+	if driver == "sqlite" {
+		dir := filepath.Dir(dsn)
+		if dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return nil, fmt.Errorf("failed to create sqlite directory: %w", err)
+			}
 		}
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
+		return nil, fmt.Errorf("failed to open %s database: %w", driver, err)
 	}
 
-	// Optimize connection pooling for SQLite
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	// Connection pool tuning.
+	if driver == "sqlite" {
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	} else {
+		db.SetMaxOpenConns(25)
+		db.SetMaxIdleConns(25)
+	}
 	db.SetConnMaxLifetime(time.Hour)
 
-	repo := &SQLiteRepository{db: db}
+	repo := &sqlRepository{db: db, driver: driver}
 	if err := repo.migrate(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to run database migrations: %w", err)
+		return nil, fmt.Errorf("migration failed: %w", err)
 	}
-
 	return repo, nil
 }
 
-func (r *SQLiteRepository) migrate() error {
+type sqlRepository struct {
+	db     *sql.DB
+	driver string
+}
+
+func (r *sqlRepository) migrate() error {
+    var schema string
+    if r.driver == "sqlite" {
+        schema = `
+        CREATE TABLE IF NOT EXISTS urls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_url TEXT NOT NULL UNIQUE,
+            short_code TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+        `
+    } else { // mysql
+        schema = `
+        CREATE TABLE IF NOT EXISTS urls (
+            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            original_url VARCHAR(2048) NOT NULL UNIQUE,
+            short_code VARCHAR(255) NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+        `
+    }
+    _, err := r.db.Exec(schema)
+    return err
+}
+    var schema string
+    if r.driver == "sqlite" {
+        schema = `
+        CREATE TABLE IF NOT EXISTS urls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_url TEXT NOT NULL UNIQUE,
+            short_code TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+        `
+    } else { // mysql
+        schema = `
+        CREATE TABLE IF NOT EXISTS urls (
+            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            original_url VARCHAR(2048) NOT NULL UNIQUE,
+            short_code VARCHAR(128) NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB;
+        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+        `
+    }
+    _, err := r.db.Exec(schema)
+    return err
+}
+    var schema string
+    if r.driver == "sqlite" {
+        schema = `
+        CREATE TABLE IF NOT EXISTS urls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_url TEXT NOT NULL UNIQUE,
+            short_code TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+        CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+        `
+    } else { // mysql
+        schema = `
+        CREATE TABLE IF NOT EXISTS urls (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            original_url VARCHAR(2048) NOT NULL UNIQUE,
+            short_code VARCHAR(255) NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX idx_urls_short_code ON urls(short_code);
+        CREATE INDEX idx_urls_original_url ON urls(original_url);
+        `
+    }
+    _, err := r.db.Exec(schema)
+    return err
+}
 	schema := `
-	CREATE TABLE IF NOT EXISTS urls (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		original_url TEXT NOT NULL UNIQUE,
-		short_code TEXT NOT NULL UNIQUE,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
-	CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
-	`
+    CREATE TABLE IF NOT EXISTS urls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_url TEXT NOT NULL UNIQUE,
+        short_code TEXT NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+    CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
+    `
 	_, err := r.db.Exec(schema)
 	return err
 }
 
-// FindByOriginalURL looks up an existing URL mapping (Duplicate check).
-func (r *SQLiteRepository) FindByOriginalURL(ctx context.Context, originalURL string) (*models.URL, error) {
+func (r *sqlRepository) FindByOriginalURL(ctx context.Context, originalURL string) (*models.URL, error) {
 	query := `SELECT id, original_url, short_code, created_at FROM urls WHERE original_url = ? LIMIT 1`
 	row := r.db.QueryRowContext(ctx, query, originalURL)
-
 	var u models.URL
-	var createdAtStr string
-	err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &createdAtStr)
-	if err != nil {
+	var ts string
+	if err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &ts); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-
-	u.CreatedAt = parseTime(createdAtStr)
+	u.CreatedAt = parseTime(ts)
 	return &u, nil
 }
 
-// Create inserts a new originalURL and shortCode mapping into SQLite.
-func (r *SQLiteRepository) Create(ctx context.Context, originalURL, shortCode string) (*models.URL, error) {
+func (r *sqlRepository) Create(ctx context.Context, originalURL, shortCode string) (*models.URL, error) {
 	query := `INSERT INTO urls (original_url, short_code) VALUES (?, ?)`
 	res, err := r.db.ExecContext(ctx, query, originalURL, shortCode)
 	if err != nil {
 		return nil, err
 	}
-
 	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, err
 	}
-
-	return &models.URL{
-		ID:          id,
-		OriginalURL: originalURL,
-		ShortCode:   shortCode,
-		CreatedAt:   time.Now().UTC(),
-	}, nil
+	return &models.URL{ID: id, OriginalURL: originalURL, ShortCode: shortCode, CreatedAt: time.Now().UTC()}, nil
 }
 
-// FindByShortCode finds the original URL given a short code.
-func (r *SQLiteRepository) FindByShortCode(ctx context.Context, shortCode string) (*models.URL, error) {
+func (r *sqlRepository) FindByShortCode(ctx context.Context, shortCode string) (*models.URL, error) {
 	query := `SELECT id, original_url, short_code, created_at FROM urls WHERE short_code = ? LIMIT 1`
 	row := r.db.QueryRowContext(ctx, query, shortCode)
-
 	var u models.URL
-	var createdAtStr string
-	err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &createdAtStr)
-	if err != nil {
+	var ts string
+	if err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &ts); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-
-	u.CreatedAt = parseTime(createdAtStr)
+	u.CreatedAt = parseTime(ts)
 	return &u, nil
 }
 
-// GetRecentURLs fetches recently shortened URLs for the dashboard.
-func (r *SQLiteRepository) GetRecentURLs(ctx context.Context, limit int) ([]*models.URL, error) {
+func (r *sqlRepository) GetRecentURLs(ctx context.Context, limit int) ([]*models.URL, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-
 	query := `SELECT id, original_url, short_code, created_at FROM urls ORDER BY id DESC LIMIT ?`
 	rows, err := r.db.QueryContext(ctx, query, limit)
 	if err != nil {
@@ -146,38 +218,30 @@ func (r *SQLiteRepository) GetRecentURLs(ctx context.Context, limit int) ([]*mod
 	}
 	defer rows.Close()
 
-	var urls []*models.URL
+	var result []*models.URL
 	for rows.Next() {
 		var u models.URL
-		var createdAtStr string
-		if err := rows.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &createdAtStr); err != nil {
+		var ts string
+		if err := rows.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &ts); err != nil {
 			return nil, err
 		}
-		u.CreatedAt = parseTime(createdAtStr)
-		urls = append(urls, &u)
+		u.CreatedAt = parseTime(ts)
+		result = append(result, &u)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
-	return urls, nil
+	return result, nil
 }
 
-// Close closes the database handle.
-func (r *SQLiteRepository) Close() error {
+func (r *sqlRepository) Close() error {
 	return r.db.Close()
 }
 
 func parseTime(raw string) time.Time {
-	// Attempt multiple SQLite datetime formats
-	formats := []string{
-		"2006-01-02 15:04:05",
-		time.RFC3339,
-		"2006-01-02T15:04:05Z",
-	}
-	for _, f := range formats {
-		if t, err := time.Parse(f, raw); err == nil {
+	layouts := []string{"2006-01-02 15:04:05", time.RFC3339, "2006-01-02T15:04:05Z"}
+	for _, l := range layouts {
+		if t, err := time.Parse(l, raw); err == nil {
 			return t
 		}
 	}

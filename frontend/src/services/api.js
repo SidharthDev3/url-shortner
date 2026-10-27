@@ -37,3 +37,4 @@ export async function getRecentUrls() {
 
   return Array.isArray(data) ? data : [];
 }
+
