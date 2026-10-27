@@ -1,45 +1,46 @@
 package config
 
 import (
-	"os"
-	"strings"
+    "os"
+    "strings"
 )
 
-// Config holds runtime configuration settings for the backend application.
+// Config holds runtime configuration for the backend.
 type Config struct {
-	Port    string
-	DBPath  string
-	BaseURL string
-	Env     string
+    Port     string // server port, e.g. "8080"
+    DBPath   string // fallback SQLite file path (used if driver is sqlite)
+    BaseURL  string // base URL for generated short links
+    Env      string // development / production
+    DBDriver string // "sqlite" or "mysql"
+    DBDSN    string // full DSN for the selected driver
 }
 
-// Load loads configuration from environment variables with fallback defaults.
+// Load reads env vars (with defaults) and returns a Config.
 func Load() *Config {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+    port := envOr("PORT", "8080")
+    dbPath := envOr("DB_PATH", "./data/urls.db")
+    baseURL := envOr("BASE_URL", "http://localhost:"+port)
+    baseURL = strings.TrimSuffix(baseURL, "/")
+    env := envOr("ENV", "development")
+    dbDriver := envOr("DB_DRIVER", "sqlite")
+    dbDSN := os.Getenv("DB_DSN")
+    if dbDSN == "" && dbDriver == "sqlite" {
+        dbDSN = dbPath // SQLite DSN is just the file path
+    }
+    return &Config{
+        Port:     port,
+        DBPath:   dbPath,
+        BaseURL:  baseURL,
+        Env:      env,
+        DBDriver: dbDriver,
+        DBDSN:    dbDSN,
+    }
+}
 
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "./data/urls.db"
-	}
-
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:" + port
-	}
-	baseURL = strings.TrimSuffix(baseURL, "/")
-
-	env := os.Getenv("ENV")
-	if env == "" {
-		env = "development"
-	}
-
-	return &Config{
-		Port:    port,
-		DBPath:  dbPath,
-		BaseURL: baseURL,
-		Env:     env,
-	}
+// envOr returns the env var value or the fallback.
+func envOr(key, fallback string) string {
+    if v := os.Getenv(key); v != "" {
+        return v
+    }
+    return fallback
 }

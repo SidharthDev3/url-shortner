@@ -22,8 +22,26 @@ func main() {
 	cfg := config.Load()
 	log.Printf("Starting URL Shortener Backend (Env: %s, Port: %s)...", cfg.Env, cfg.Port)
 
-	// 2. Initialize SQLite database repository
-	repo, err := repository.NewSQLiteRepository(cfg.DBPath)
+		// 2. Initialize repository (SQLite or MySQL based on config)
+	repo, err := repository.NewRepository(cfg.DBDriver, cfg.DBDSN)
+	if err != nil {
+		log.Fatalf("Fatal: Database initialization failed: %v", err)
+	}
+	defer repo.Close()
+	log.Printf("%s database connected successfully.", cfg.DBDriver)
+
+	
+	if err != nil {
+		log.Fatalf("Fatal: Database initialization failed: %v", err)
+	}
+	defer repo.Close()
+	log.Printf("Database (%s) connected successfully.", cfg.DBDriver)
+	
+    if err != nil {
+        log.Fatalf("Fatal: Database initialization failed: %v", err)
+    }
+    defer repo.Close()
+    log.Printf("%s database connected successfully", cfg.DBDriver)
 	if err != nil {
 		log.Fatalf("Fatal: Database initialization failed: %v", err)
 	}
