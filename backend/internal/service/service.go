@@ -72,15 +72,28 @@ func (s *URLService) Shorten(ctx context.Context, rawURL string) (*models.Shorte
 			shortCode = candidate
 			break
 		}
+		if err != nil {
+			return nil, fmt.Errorf("error checking short-code availability: %w", err)
+		}
 	}
 
 	if shortCode == "" {
 		return nil, ErrCollision
 	}
 
-	// 4. Save to SQLite database
+	// 4. Save to the configured database.
 	saved, err := s.repo.Create(ctx, validURL, shortCode)
 	if err != nil {
+		// A concurrent request may have inserted the same original URL after
+		// the duplicate check. Return that mapping instead of an unnecessary 500.
+		if existing, lookupErr := s.repo.FindByOriginalURL(ctx, validURL); lookupErr == nil {
+			return &models.ShortenResponse{
+				ShortCode:   existing.ShortCode,
+				ShortURL:    fmt.Sprintf("%s/%s", s.baseURL, existing.ShortCode),
+				OriginalURL: existing.OriginalURL,
+				CreatedAt:   existing.CreatedAt,
+			}, nil
+		}
 		return nil, fmt.Errorf("failed to save url to database: %w", err)
 	}
 

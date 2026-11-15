@@ -9,7 +9,7 @@ import (
 	"url-shortener-backend/internal/repository"
 )
 
-func setupTestRepo(t *testing.T) (*repository.SQLiteRepository, func()) {
+func setupTestRepo(t *testing.T) (repository.Repository, func()) {
 	t.Helper()
 	tempDir, err := os.MkdirTemp("", "url_shortener_test_*")
 	if err != nil {
@@ -17,7 +17,7 @@ func setupTestRepo(t *testing.T) (*repository.SQLiteRepository, func()) {
 	}
 
 	dbPath := filepath.Join(tempDir, "test.db")
-	repo, err := repository.NewSQLiteRepository(dbPath)
+	repo, err := repository.NewRepository("sqlite", dbPath)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to init test repo: %v", err)
@@ -99,10 +99,21 @@ func TestURLService_ShortenAndDuplicateCheck(t *testing.T) {
 		t.Errorf("resolved URL mismatch: expected %s, got %s", targetURL, resolved)
 	}
 
-	// 4. Resolve unknown code
+	// 4. Fetch the saved mapping for the dashboard/history API.
+	history, err := svc.GetHistory(ctx, 20)
+	if err != nil {
+		t.Fatalf("failed to fetch history: %v", err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("expected one history record, got %d", len(history))
+	}
+	if history[0].ShortCode != resp1.ShortCode || history[0].OriginalURL != targetURL {
+		t.Errorf("history returned the wrong mapping: %#v", history[0])
+	}
+
+	// 5. Resolve unknown code
 	_, err = svc.Resolve(ctx, "unknownXYZ")
 	if err == nil {
 		t.Errorf("expected error when resolving non-existent short code")
 	}
 }
-

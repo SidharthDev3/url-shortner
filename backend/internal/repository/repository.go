@@ -2,22 +2,46 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"url-shortener-backend/internal/models"
 
 	// Drivers – the one needed will be selected at runtime.
+	mysql "github.com/go-sql-driver/mysql"
 	_ "modernc.org/sqlite"
 )
 
 var (
 	ErrNotFound = errors.New("url mapping not found")
 )
+
+// RegisterMySQLTLSConfig registers a certificate authority bundle for a MySQL
+// DSN that uses tls=<name>, for example tls=rds.
+func RegisterMySQLTLSConfig(name, caFile string) error {
+	pemData, err := os.ReadFile(caFile)
+	if err != nil {
+		return fmt.Errorf("read MySQL CA bundle: %w", err)
+	}
+
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pemData) {
+		return fmt.Errorf("no certificates found in MySQL CA bundle %q", caFile)
+	}
+
+	return mysql.RegisterTLSConfig(name, &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    roots,
+	})
+}
 
 // Repository defines persistence operations for URLs.
 type Repository interface {
@@ -30,6 +54,14 @@ type Repository interface {
 
 // NewRepository creates a repository based on the driver and DSN.
 func NewRepository(driver string, dsn string) (Repository, error) {
+	driver = strings.ToLower(strings.TrimSpace(driver))
+	if driver != "sqlite" && driver != "mysql" {
+		return nil, fmt.Errorf("unsupported database driver %q", driver)
+	}
+	if dsn == "" {
+		return nil, fmt.Errorf("database DSN is required for %s", driver)
+	}
+
 	// Ensure the directory exists for SQLite file if needed.
 	if driver == "sqlite" {
 		dir := filepath.Dir(dsn)
@@ -85,12 +117,11 @@ func (r *sqlRepository) migrate() error {
 		schema = `
 		CREATE TABLE IF NOT EXISTS urls (
 			id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			original_url VARCHAR(2048) NOT NULL UNIQUE,
-			short_code VARCHAR(255) NOT NULL UNIQUE,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			original_url TEXT NOT NULL,
+			original_url_hash CHAR(64) CHARACTER SET ascii NOT NULL UNIQUE,
+			short_code CHAR(6) CHARACTER SET ascii NOT NULL UNIQUE,
+			created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 		);
-		
-		CREATE INDEX IF NOT EXISTS idx_urls_original_url ON urls(original_url);
 		`
 	}
 	_, err := r.db.Exec(schema)
@@ -99,22 +130,32 @@ func (r *sqlRepository) migrate() error {
 
 func (r *sqlRepository) FindByOriginalURL(ctx context.Context, originalURL string) (*models.URL, error) {
 	query := `SELECT id, original_url, short_code, created_at FROM urls WHERE original_url = ? LIMIT 1`
-	row := r.db.QueryRowContext(ctx, query, originalURL)
+	args := []any{originalURL}
+	if r.driver == "mysql" {
+		query = `SELECT id, original_url, short_code, created_at FROM urls WHERE original_url_hash = ? AND original_url = ? LIMIT 1`
+		args = []any{hashURL(originalURL), originalURL}
+	}
+	row := r.db.QueryRowContext(ctx, query, args...)
 	var u models.URL
-	var ts string
-	if err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &ts); err != nil {
+	var createdAt dbTime
+	if err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &createdAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	u.CreatedAt = parseTime(ts)
+	u.CreatedAt = createdAt.Time
 	return &u, nil
 }
 
 func (r *sqlRepository) Create(ctx context.Context, originalURL, shortCode string) (*models.URL, error) {
 	query := `INSERT INTO urls (original_url, short_code) VALUES (?, ?)`
-	res, err := r.db.ExecContext(ctx, query, originalURL, shortCode)
+	args := []any{originalURL, shortCode}
+	if r.driver == "mysql" {
+		query = `INSERT INTO urls (original_url, original_url_hash, short_code) VALUES (?, ?, ?)`
+		args = []any{originalURL, hashURL(originalURL), shortCode}
+	}
+	res, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,14 +170,14 @@ func (r *sqlRepository) FindByShortCode(ctx context.Context, shortCode string) (
 	query := `SELECT id, original_url, short_code, created_at FROM urls WHERE short_code = ? LIMIT 1`
 	row := r.db.QueryRowContext(ctx, query, shortCode)
 	var u models.URL
-	var ts string
-	if err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &ts); err != nil {
+	var createdAt dbTime
+	if err := row.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &createdAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	u.CreatedAt = parseTime(ts)
+	u.CreatedAt = createdAt.Time
 	return &u, nil
 }
 
@@ -154,11 +195,11 @@ func (r *sqlRepository) GetRecentURLs(ctx context.Context, limit int) ([]*models
 	var result []*models.URL
 	for rows.Next() {
 		var u models.URL
-		var ts string
-		if err := rows.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &ts); err != nil {
+		var createdAt dbTime
+		if err := rows.Scan(&u.ID, &u.OriginalURL, &u.ShortCode, &createdAt); err != nil {
 			return nil, err
 		}
-		u.CreatedAt = parseTime(ts)
+		u.CreatedAt = createdAt.Time
 		result = append(result, &u)
 	}
 	if err := rows.Err(); err != nil {
@@ -171,12 +212,36 @@ func (r *sqlRepository) Close() error {
 	return r.db.Close()
 }
 
-func parseTime(raw string) time.Time {
-	layouts := []string{"2006-01-02 15:04:05", time.RFC3339, "2006-01-02T15:04:05Z"}
-	for _, l := range layouts {
-		if t, err := time.Parse(l, raw); err == nil {
-			return t
+func hashURL(originalURL string) string {
+	sum := sha256.Sum256([]byte(originalURL))
+	return fmt.Sprintf("%x", sum)
+}
+
+type dbTime struct {
+	time.Time
+}
+
+func (t *dbTime) Scan(value any) error {
+	switch v := value.(type) {
+	case time.Time:
+		t.Time = v.UTC()
+		return nil
+	case string:
+		return t.parse(v)
+	case []byte:
+		return t.parse(string(v))
+	default:
+		return fmt.Errorf("unsupported database timestamp type %T", value)
+	}
+}
+
+func (t *dbTime) parse(raw string) error {
+	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999", "2006-01-02 15:04:05"}
+	for _, layout := range layouts {
+		if parsed, err := time.ParseInLocation(layout, raw, time.UTC); err == nil {
+			t.Time = parsed.UTC()
+			return nil
 		}
 	}
-	return time.Now().UTC()
+	return fmt.Errorf("invalid database timestamp %q", raw)
 }

@@ -23,18 +23,4 @@ export async function shortenUrl(url) {
   return data;
 }
 
-/**
- * Fetch recently shortened URLs from Go Backend API
- * @returns {Promise<Array<{short_code: string, short_url: string, original_url: string, created_at: string}>>}
- */
-export async function getRecentUrls() {
-  const response = await fetch(`${API_BASE_URL}/urls`);
-  const data = await response.json().catch(() => ([]));
-
-  if (!response.ok) {
-    throw new Error(data.error || "Failed to fetch recent URLs");
-  }
-
-  return Array.isArray(data) ? data : [];
-}
 

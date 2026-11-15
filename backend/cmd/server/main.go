@@ -19,34 +19,24 @@ import (
 
 func main() {
 	// 1. Load application configuration
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Fatal: Configuration failed: %v", err)
+	}
 	log.Printf("Starting URL Shortener Backend (Env: %s, Port: %s)...", cfg.Env, cfg.Port)
 
-		// 2. Initialize repository (SQLite or MySQL based on config)
+	// 2. Initialize repository (SQLite or MySQL based on config)
+	if cfg.DBDriver == "mysql" && cfg.DBTLSCAFile != "" {
+		if err := repository.RegisterMySQLTLSConfig("rds", cfg.DBTLSCAFile); err != nil {
+			log.Fatalf("Fatal: MySQL TLS configuration failed: %v", err)
+		}
+	}
 	repo, err := repository.NewRepository(cfg.DBDriver, cfg.DBDSN)
 	if err != nil {
 		log.Fatalf("Fatal: Database initialization failed: %v", err)
 	}
 	defer repo.Close()
 	log.Printf("%s database connected successfully.", cfg.DBDriver)
-
-	
-	if err != nil {
-		log.Fatalf("Fatal: Database initialization failed: %v", err)
-	}
-	defer repo.Close()
-	log.Printf("Database (%s) connected successfully.", cfg.DBDriver)
-	
-    if err != nil {
-        log.Fatalf("Fatal: Database initialization failed: %v", err)
-    }
-    defer repo.Close()
-    log.Printf("%s database connected successfully", cfg.DBDriver)
-	if err != nil {
-		log.Fatalf("Fatal: Database initialization failed: %v", err)
-	}
-	defer repo.Close()
-	log.Printf("SQLite database connected successfully at: %s", cfg.DBPath)
 
 	// 3. Initialize business service & HTTP handler
 	svc := service.NewURLService(repo, cfg.BaseURL)
@@ -92,4 +82,3 @@ func main() {
 
 	log.Println("Server exiting.")
 }
-
